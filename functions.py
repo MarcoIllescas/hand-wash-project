@@ -1,3 +1,11 @@
+import cv2
+import numpy as np
+import mediapipe as mp
+from mediapipe.tasks import python
+from mediapipe.tasks.python import vision
+from scipy.ndimage import gaussian_filter1d
+from skimage.metrics import structural_similarity as ssim
+
 def preprocess_video(input_path, output_path, target_fps=25, target_size=(640, 480), apply_clahe=True):
     """
     Preprocess a video following the next steps:
