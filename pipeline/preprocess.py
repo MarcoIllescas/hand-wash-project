@@ -17,16 +17,16 @@ def preprocess_video(
 ) -> dict:
     """
     Preprocess a video by performing:
-        - Temporal rescaling (fixed FPS)
-        - Spatial normalization (resize)
-        - Basic lighting correction (CLAHE)
+        Temporal rescaling (fixed FPS)
+        Spatial normalization (resize)
+        Basic lighting correction (CLAHE)
 
     Parameters:
-        - input_path        : path of the original video
-        - output_path       : path of the processed video
-        - target_fps        : desired FPS (default 25)
-        - target_size       : desired (width, height) (default 640x480)
-        - clahe_application : apply lighting correction
+        input_path        : path of the original video
+        output_path       : path of the processed video
+        target_fps        : desired FPS (default 25)
+        target_size       : desired (width, height) (default 640x480)
+        clahe_application : apply lighting correction
 
     Returns:
         dict with processing metadata
