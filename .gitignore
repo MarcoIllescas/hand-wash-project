@@ -1,0 +1,5 @@
+# --- All data -- #
+data/
+
+# --- Cache --- #
+__pycache__/
