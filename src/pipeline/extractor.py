@@ -105,7 +105,25 @@ NUM_HANDS = 2
 # --- Landmarks block size by hand: 21 points × 3 coords --- #
 LANDMARKS_BY_HAND = NUM_LANDMARKS * NUM_COORDS
 
-def extract_frame_landmarks(detection_result) -> np.ndarray:
+# --- Auxiliar function to detect large nan gap --- #
+def has_large_nan_gap(serie: np.ndarray, max_gap: int = 10) -> bool:
+    """
+    Check if there is a consecutive block of NaNs.
+    """
+    nan_mask = np.isnan(serie)
+    consecutive_nans = 0
+
+    for is_nan in nan_mask:
+        if is_nan:
+            consecutive_nans += 1
+            if consecutive_nans > max_gap:
+                return True
+        else:
+            consecutive_nans = 0
+    
+    return False
+
+def extract_frame_landmarks(detection_result) -> dict:
     """
     Extract the world landmarks (hand_world_landmarks) from a frame and
     returns them as a fixed array (2, 21, 3).
@@ -147,7 +165,7 @@ def extract_frame_landmarks(detection_result) -> np.ndarray:
 
     return {"world": exact_world, "normalized": exact_norm}
 
-def interpolate_landmarks(sequence: list[np.ndarray]) -> list[np.ndarray]:
+def interpolate_landmarks(sequence: list[np.ndarray], max_gap: int = 10) -> list[np.ndarray]:
     """
     Receives a list of arrays (2, 21, 3) where some values are NaN and
     linearly interpolates the NaNs using the neighboring frames.
@@ -163,7 +181,7 @@ def interpolate_landmarks(sequence: list[np.ndarray]) -> list[np.ndarray]:
     """
     T = len(sequence)
 
-    # --- Transform to array (T, 2, 21, 3)
+    # --- Transform to array (T, 2, 21, 3) --- #
     arr = np.array(sequence, dtype = np.float32)
 
     for hand_idx in range(NUM_HANDS):
@@ -180,6 +198,10 @@ def interpolate_landmarks(sequence: list[np.ndarray]) -> list[np.ndarray]:
                     arr[:, hand_idx, lm_idx, coord_idx] = 0.0
                     continue
 
+                # --- Gap verification --- #
+                if has_large_nan_gap(serie, max_gap):
+                    raise ValueError(f"Gap greater than {max_gap} frames lost in hand {hand_idx}")
+
                 # --- Linear interpolation --- #
                 idx = np.arange(T)
                 valids = ~nan_mask
@@ -195,7 +217,8 @@ def extract_video_landmarks(
     video_path: str,
     detector,
     similarity: float = 0.88,
-) -> list[np.ndarray]:
+    max_gap: int = 10
+) -> dict:
     """
     Complete pipeline: video -> list of landmarks per frame (without NaNs).
 
@@ -216,7 +239,7 @@ def extract_video_landmarks(
     frames = extract_distinctive_frames(video_path, similarity)
 
     if not frames:
-        return []
+        return {"world": [], "normalized": []}
     
     raw_sequence = []
     for frame in frames:
@@ -229,9 +252,17 @@ def extract_video_landmarks(
     filtered_sequence = [lm for lm in raw_sequence if not np.isnan(lm).all()]
 
     if not filtered_sequence:
-        return []
+        return {"world": [], "normalized": []}
+    
+    # --- Separate data sets --- #
+    world_sequence = [item["world"] for item in filtered_sequence]
+    normalized_sequence = [item["normalized"] for item in filtered_sequence]
     
     # --- Interpolate missing landmarks --- #
-    clean_sequence = interpolate_landmarks(filtered_sequence)
+    clean_world = interpolate_landmarks(world_sequence, max_gap)
+    clean_normalized = interpolate_landmarks(normalized_sequence, max_gap)
 
-    return clean_sequence
+    return {
+        "world": clean_world,
+        "normalized": clean_normalized
+    }
