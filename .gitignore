@@ -1,5 +1,10 @@
 # --- All data -- #
 data/
 
+# --- Video files --- #
+*.mp4
+*.avi
+*.mov
+
 # --- Cache --- #
 __pycache__/
