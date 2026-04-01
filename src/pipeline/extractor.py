@@ -119,17 +119,22 @@ def extract_frame_landmarks(detection_result) -> np.ndarray:
         np.ndarray (2, 21, 3) -> Always the same shape
         [0] = left hand (or NaN if not detected)
         [1] = right hand (or NaN if not detected)
+        Normalized landmarks for visualization
     """
-    # --- Initialize with NaN (means no detected) --- #
-    exact_landmarks = np.full((NUM_HANDS, NUM_LANDMARKS, NUM_COORDS), np.nan)
+    exact_world = np.full((NUM_HANDS, NUM_LANDMARKS, NUM_COORDS), np.nan)
+    exact_norm = np.full((NUM_HANDS, NUM_LANDMARKS, NUM_COORDS), np.nan)
 
-    if detection_result is None:
-        return exact_landmarks
+    if detection_result is None or not detection_result.hand_world_landmarks:
+        return {"world": exact_world, "normalized": exact_norm}
     
-    detected_hands = detection_result.hand_world_landmarks
-    handedness_list = detection_result.handedness
+    # --- Iterate over both sets of reference points --- #
+    zipped_data = zip(
+        detection_result.hand_world_landmarks,
+        detection_result.hand_landmarks,
+        detection_result.handedness
+    )
 
-    for idx, (hand, handedness) in enumerate(zip(detected_hands, handedness_list)):
+    for idx, (hand_world, hand_norm, handedness) in enumerate(zipped_data):
         if idx >= NUM_HANDS:
             break
 
@@ -137,9 +142,10 @@ def extract_frame_landmarks(detection_result) -> np.ndarray:
         side = handedness[0].category_name.lower()
         slot = 0 if side == "left" else 1
 
-        exact_landmarks[slot] = np.array([[lm.x, lm.y, lm.z] for lm in hand])
+        exact_world[slot] = np.array([[lm.x, lm.y, lm.z] for lm in hand_world])
+        exact_norm[slot] = np.array([[lm.x, lm.y, lm.z] for lm in hand_norm])
 
-    return exact_landmarks
+    return {"world": exact_world, "normalized": exact_norm}
 
 def interpolate_landmarks(sequence: list[np.ndarray]) -> list[np.ndarray]:
     """

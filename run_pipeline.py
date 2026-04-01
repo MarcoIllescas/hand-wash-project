@@ -12,9 +12,9 @@ Full workflow per video:
 """
 import os
 import numpy as np
-from pipeline.preprocess import preprocess_video
-from pipeline.landmark_extractor import create_detector, extract_video_landmarks
-from pipeline.feature_builder import build_signature, normalize_signature, smooth_signature
+from pipeline.preprocessor import preprocess_video
+from pipeline.extractor import create_detector, extract_video_landmarks
+from pipeline.builder import build_signature, normalize_signature, smooth_signature
 from utils.video_registry import register_video, mark_signature_saved, load_registry
 
 # ------------------------------------------------------------------- #
