@@ -27,7 +27,7 @@ def create_detector(model_path: str = "hand_landmarker.task", num_hands: int = 2
         vision.HandLandmarker 
     """
     base_options = python.BaseOptions(model_asset_path = model_path)
-    options = vision.HandLandmarker(base_options = base_options, num_hands = num_hands)
+    options = vision.HandLandmarkerOptions(base_options = base_options, num_hands = num_hands)
 
     return vision.HandLandmarker.create_from_options(options)
 
@@ -249,7 +249,7 @@ def extract_video_landmarks(
         raw_sequence.append(lm_frame)
 
     # --- Discard frames where no hand was detected (both slots NaN) --- #
-    filtered_sequence = [lm for lm in raw_sequence if not np.isnan(lm).all()]
+    filtered_sequence = [lm for lm in raw_sequence if not np.isnan(lm["world"]).all()]
 
     if not filtered_sequence:
         return {"world": [], "normalized": []}
@@ -264,5 +264,6 @@ def extract_video_landmarks(
 
     return {
         "world": clean_world,
-        "normalized": clean_normalized
+        "normalized": clean_normalized,
+        "frames": frames
     }

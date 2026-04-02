@@ -12,7 +12,7 @@ def create_debug_video(
     the points, and save the result in a temporary video file.
     """
     if not frames or not landmarks_seq:
-        print("⚠️ No frames or landmarks to visualize.")
+        print("No frames or landmarks to visualize.")
         return
     
     height, width, _ = frames[0].shape

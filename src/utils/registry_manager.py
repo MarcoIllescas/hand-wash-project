@@ -108,12 +108,12 @@ def register_video(
         "processed_id"       : new_id,
         "original_filename"  : original_filename,
         "processed_date"     : datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "fps_original"       : preprocessing_metadata.get("fps_original", ""),
-        "fps_new"            : preprocessing_metadata.get("fps_new", ""),
-        "resolution_original": str(preprocessing_metadata.get("resolution_original", "")),
-        "resolution_new"     : str(preprocessing_metadata.get("resolution_new", "")),
-        "frames_original"    : preprocessing_metadata.get("frames_original", ""),
-        "frames_saved"       : preprocessing_metadata.get("frames_saved", ""),
+        "fps_original"       : preprocessing_metadata.get("original_fps", ""),
+        "fps_new"            : preprocessing_metadata.get("new_fps", ""),
+        "resolution_original": str(preprocessing_metadata.get("original_resolution", "")),
+        "resolution_new"     : str(preprocessing_metadata.get("new_resolution", "")),
+        "frames_original"    : preprocessing_metadata.get("original_frames", ""),
+        "frames_saved"       : preprocessing_metadata.get("saved_frames", ""),
         "signature_saved"    : "False",
     }
 
