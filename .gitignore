@@ -8,3 +8,6 @@ data/
 
 # --- Cache --- #
 __pycache__/
+
+# --- Hand Landmarker --- #
+*.task
