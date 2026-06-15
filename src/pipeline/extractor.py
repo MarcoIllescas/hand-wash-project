@@ -187,22 +187,22 @@ def interpolate_landmarks(sequence: list[np.ndarray], max_gap: int = 10) -> list
             for coord_idx in range(NUM_COORDS):
                 serie = arr[:, hand_idx, lm_idx, coord_idx]
 
-                nan_mask = np.isnan(serie)
-                if not nan_mask.any():
+                zero_mask = (serie == 0.0)
+                if not zero_mask.any():
                     continue
 
-                if nan_mask.all():
+                if zero_mask.all():
                     # --- Hand never detected (filled with 0) --- #
                     arr[:, hand_idx, lm_idx, coord_idx] = 0.0
                     continue
 
                 # --- Gap verification --- #
-                if has_large_nan_gap(serie, max_gap):
-                    raise ValueError(f"Gap greater than {max_gap} frames lost in hand {hand_idx}")
+                if has_large_zero_gap(serie, max_gap):
+                    continue
 
                 # --- Cubic interpolation --- #
                 idx = np.arange(T)
-                valids = ~nan_mask
+                valids = ~zero_mask
                 x_valid = idx[valids]
                 y_valid = serie[valids]
 
@@ -212,7 +212,7 @@ def interpolate_landmarks(sequence: list[np.ndarray], max_gap: int = 10) -> list
                 else:
                     interpolated_serie = np.full(T, y_valid[0])
 
-                arr[:, hand_idx, lm_idx, coord_idx] = np.where(nan_mask, interpolated_serie, serie)
+                arr[:, hand_idx, lm_idx, coord_idx] = np.where(zero_mask, interpolated_serie, serie)
 
     return [arr[t] for t in range(T)]
 
