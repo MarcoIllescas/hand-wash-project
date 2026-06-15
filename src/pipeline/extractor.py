@@ -106,21 +106,21 @@ NUM_HANDS = 2
 # --- Landmarks block size by hand: 21 points × 3 coords --- #
 LANDMARKS_BY_HAND = NUM_LANDMARKS * NUM_COORDS
 
-# --- Auxiliar function to detect large nan gap --- #
-def has_large_nan_gap(serie: np.ndarray, max_gap: int = 10) -> bool:
+# --- Auxiliar function to detect large zero gap --- #
+def has_large_zero_gap(serie: np.ndarray, max_gap: int = 10) -> bool:
     """
-    Check if there is a consecutive block of NaNs.
+    Check if there is a consecutive block of zeros.
     """
-    nan_mask = np.isnan(serie)
-    consecutive_nans = 0
+    zero_mask = (serie == 0.0)
+    consecutive_zeros = 0
 
-    for is_nan in nan_mask:
-        if is_nan:
-            consecutive_nans += 1
-            if consecutive_nans > max_gap:
+    for is_zero in zero_mask:
+        if is_zero:
+            consecutive_zeros += 1
+            if consecutive_zeros > max_gap:
                 return True
         else:
-            consecutive_nans = 0
+            consecutive_zeros = 0
     
     return False
 
