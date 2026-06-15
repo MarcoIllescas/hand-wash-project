@@ -11,6 +11,7 @@ import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 from skimage.metrics import structural_similarity as ssim
+from scipy.interpolate import CubicSpline
 
 # ------------------------------------------------------------------- #
 #    Detector initialization (it is created only once and reused)     #
@@ -105,21 +106,21 @@ NUM_HANDS = 2
 # --- Landmarks block size by hand: 21 points × 3 coords --- #
 LANDMARKS_BY_HAND = NUM_LANDMARKS * NUM_COORDS
 
-# --- Auxiliar function to detect large nan gap --- #
-def has_large_nan_gap(serie: np.ndarray, max_gap: int = 10) -> bool:
+# --- Auxiliar function to detect large zero gap --- #
+def has_large_zero_gap(serie: np.ndarray, max_gap: int = 10) -> bool:
     """
-    Check if there is a consecutive block of NaNs.
+    Check if there is a consecutive block of zeros.
     """
-    nan_mask = np.isnan(serie)
-    consecutive_nans = 0
+    zero_mask = (serie == 0.0)
+    consecutive_zeros = 0
 
-    for is_nan in nan_mask:
-        if is_nan:
-            consecutive_nans += 1
-            if consecutive_nans > max_gap:
+    for is_zero in zero_mask:
+        if is_zero:
+            consecutive_zeros += 1
+            if consecutive_zeros > max_gap:
                 return True
         else:
-            consecutive_nans = 0
+            consecutive_zeros = 0
     
     return False
 
@@ -139,8 +140,8 @@ def extract_frame_landmarks(detection_result) -> dict:
         [1] = right hand (or NaN if not detected)
         Normalized landmarks for visualization
     """
-    exact_world = np.full((NUM_HANDS, NUM_LANDMARKS, NUM_COORDS), np.nan)
-    exact_norm = np.full((NUM_HANDS, NUM_LANDMARKS, NUM_COORDS), np.nan)
+    exact_world = np.zeros((NUM_HANDS, NUM_LANDMARKS, NUM_COORDS), dtype = np.float32)
+    exact_norm = np.zeros((NUM_HANDS, NUM_LANDMARKS, NUM_COORDS), dtype = np.float32)
 
     if detection_result is None or not detection_result.hand_world_landmarks:
         return {"world": exact_world, "normalized": exact_norm}
@@ -167,11 +168,8 @@ def extract_frame_landmarks(detection_result) -> dict:
 
 def interpolate_landmarks(sequence: list[np.ndarray], max_gap: int = 10) -> list[np.ndarray]:
     """
-    Receives a list of arrays (2, 21, 3) where some values are NaN and
-    linearly interpolates the NaNs using the neighboring frames.
-    If the first or last frame has NaN, it is filled with the nearest neighbor
-    (forward/backward fill). If all the frames of a slot are NaN, that slot 
-    remains 0 (the hand never appeared)
+    Cubic landmark interpolation.
+    Maintains sequence length and fills NaN with smooth paths.
 
     Parameters: 
         secuence : list of np.ndarray (2, 21, 3)
@@ -189,24 +187,32 @@ def interpolate_landmarks(sequence: list[np.ndarray], max_gap: int = 10) -> list
             for coord_idx in range(NUM_COORDS):
                 serie = arr[:, hand_idx, lm_idx, coord_idx]
 
-                nan_mask = np.isnan(serie)
-                if not nan_mask.any():
+                zero_mask = (serie == 0.0)
+                if not zero_mask.any():
                     continue
 
-                if nan_mask.all():
+                if zero_mask.all():
                     # --- Hand never detected (filled with 0) --- #
                     arr[:, hand_idx, lm_idx, coord_idx] = 0.0
                     continue
 
                 # --- Gap verification --- #
-                if has_large_nan_gap(serie, max_gap):
-                    raise ValueError(f"Gap greater than {max_gap} frames lost in hand {hand_idx}")
+                if has_large_zero_gap(serie, max_gap):
+                    continue
 
-                # --- Linear interpolation --- #
+                # --- Cubic interpolation --- #
                 idx = np.arange(T)
-                valids = ~nan_mask
-                interpolated_serie = np.interp(idx, idx[valids], serie[valids])
-                arr[:, hand_idx, lm_idx, coord_idx] = interpolated_serie
+                valids = ~zero_mask
+                x_valid = idx[valids]
+                y_valid = serie[valids]
+
+                if len(x_valid) > 1:
+                    cs = CubicSpline(x_valid, y_valid, extrapolate = False)
+                    interpolated_serie = cs(idx)
+                else:
+                    interpolated_serie = np.full(T, y_valid[0])
+
+                arr[:, hand_idx, lm_idx, coord_idx] = np.where(zero_mask, interpolated_serie, serie)
 
     return [arr[t] for t in range(T)]
 
@@ -239,24 +245,24 @@ def extract_video_landmarks(
     frames = extract_distinctive_frames(video_path, similarity)
 
     if not frames:
-        return {"world": [], "normalized": []}
+        return {"world": [], "normalized": [], "frames": []}
     
     raw_sequence = []
     for frame in frames:
         mp_image = openCVframe_to_mpImage(frame)
         result = detector.detect(mp_image)
         lm_frame = extract_frame_landmarks(result)
+
+        if np.isnan(lm_frame["world"]).all():
+            lm_frame = {
+                "world": np.zeros((NUM_HANDS, NUM_LANDMARKS, NUM_COORDS), dtype = np.float32),
+                "normalized": np.zeros((NUM_HANDS, NUM_LANDMARKS, NUM_COORDS), dtype = np.float32)
+            }
         raw_sequence.append(lm_frame)
-
-    # --- Discard frames where no hand was detected (both slots NaN) --- #
-    filtered_sequence = [lm for lm in raw_sequence if not np.isnan(lm["world"]).all()]
-
-    if not filtered_sequence:
-        return {"world": [], "normalized": []}
     
     # --- Separate data sets --- #
-    world_sequence = [item["world"] for item in filtered_sequence]
-    normalized_sequence = [item["normalized"] for item in filtered_sequence]
+    world_sequence = [item["world"] for item in raw_sequence]
+    normalized_sequence = [item["normalized"] for item in raw_sequence]
     
     # --- Interpolate missing landmarks --- #
     clean_world = interpolate_landmarks(world_sequence, max_gap)
