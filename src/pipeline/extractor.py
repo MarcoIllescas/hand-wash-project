@@ -11,7 +11,7 @@ import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 from skimage.metrics import structural_similarity as ssim
-from scipy.interpolate import CubicSpline
+from scipy.interpolate import PchipInterpolator
 
 # ------------------------------------------------------------------- #
 #    Detector initialization (it is created only once and reused)     #
@@ -183,36 +183,38 @@ def interpolate_landmarks(sequence: list[np.ndarray], max_gap: int = 10) -> list
     arr = np.array(sequence, dtype = np.float32)
 
     for hand_idx in range(NUM_HANDS):
-        for lm_idx in range(NUM_LANDMARKS):
-            for coord_idx in range(NUM_COORDS):
-                serie = arr[:, hand_idx, lm_idx, coord_idx]
+        # 1. Evaluate if the complete hand is missing
+        hand_data = arr[:, hand_idx, :, :]
+        hand_sum = np.sum(np.abs(hand_data), axis = (1, 2))
+        zero_mask = (hand_sum == 0.0)
 
-                zero_mask = (serie == 0.0)
-                if not zero_mask.any():
-                    continue
+        if not zero_mask.any():
+            continue
 
-                if zero_mask.all():
-                    # --- Hand never detected (filled with 0) --- #
-                    arr[:, hand_idx, lm_idx, coord_idx] = 0.0
-                    continue
+        if zero_mask.all():
+            continue
 
-                # --- Gap verification --- #
-                if has_large_zero_gap(serie, max_gap):
-                    continue
+        if has_large_zero_gap(hand_sum, max_gap):
+            continue
 
-                # --- Cubic interpolation --- #
-                idx = np.arange(T)
-                valids = ~zero_mask
-                x_valid = idx[valids]
-                y_valid = serie[valids]
+        idx = np.arange(T)
+        valids = ~zero_mask
+        x_valid = idx[valids]
 
-                if len(x_valid) > 1:
-                    cs = CubicSpline(x_valid, y_valid, extrapolate = False)
-                    interpolated_serie = cs(idx)
-                else:
-                    interpolated_serie = np.full(T, y_valid[0])
+        if len(x_valid) > 1:
+            for lm_idx in range(NUM_LANDMARKS):
+                for coord_idx in range(NUM_COORDS):
+                    y_valid = arr[valids, hand_idx, lm_idx, coord_idx]
 
-                arr[:, hand_idx, lm_idx, coord_idx] = np.where(zero_mask, interpolated_serie, serie)
+                    # 2. Use PCHIP
+                    interpolate_func = PchipInterpolator(x_valid, y_valid)
+                    arr[zero_mask, hand_idx, lm_idx, coord_idx] = interpolate_func(idx[zero_mask])
+
+        else:
+            for lm_idx in range(NUM_LANDMARKS):
+                for coord_idx in range(NUM_COORDS):
+                    y_valid = arr[valids, hand_idx, lm_idx, coord_idx]
+                    arr[zero_mask, hand_idx, lm_idx, coord_idx] = y_valid[0]
 
     return [arr[t] for t in range(T)]
 

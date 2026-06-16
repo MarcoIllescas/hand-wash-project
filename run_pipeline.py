@@ -96,8 +96,8 @@ if __name__ == "__main__":
     engine = SignatureEngine(CONFIG)
 
     # --- OPTION 1: Process a single video --- #
-    result = engine.process_single_video("video_reference.mp4")
-    print(result)
+    # result = engine.process_single_video("video_reference.mp4")
+    # print(result)
 
     # --- OPTION 2: Process all pending videos --- #
-    # process_pending_videos(engine)
+    process_pending_videos(engine)
